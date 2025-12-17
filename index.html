@@ -283,7 +283,8 @@
                 card.className = 'bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm hover:shadow-md border border-slate-100 dark:border-slate-700 cursor-pointer transition active:scale-95 flex flex-col justify-between h-full group overflow-hidden';
                 card.onclick = () => addToCart(p.id);
                 
-                const iconColor = p.category.includes('Minum') ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'text-orange-500 bg-orange-50 dark:bg-orange-900/30';
+                const safeCategory = String(p.category || '');
+                const iconColor = safeCategory.includes('Minum') ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'text-orange-500 bg-orange-50 dark:bg-orange-900/30';
                 
                 let imageHtml = '';
                 if (p.image && p.image.startsWith('http')) {
@@ -320,7 +321,7 @@
             products.forEach(p => {
                 let imgCell = `<div class="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-xs text-slate-400"><i class="fa-solid fa-cube"></i></div>`;
                 if(p.image && p.image.startsWith('http')) {
-                    imgCell = `<img src="${p.image}" class="w-8 h-8 rounded object-cover bg-slate-100" onerror="this.src=''">`;
+                    imgCell = `<img src="${p.image}" class="w-8 h-8 rounded object-cover bg-slate-100" onerror="this.onerror=null;this.src='https://placehold.co/100?text=No+Img&font=roboto'">`;
                 }
 
                 const tr = document.createElement('tr');
