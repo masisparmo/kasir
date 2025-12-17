@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kasir UMKM Pintar</title>
+    <!-- Tailwind CSS with Config -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        body, div, nav, button, input, table, tr, td, th, img, span {
+            transition-property: color, background-color, border-color, opacity;
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            transition-duration: 300ms;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-slate-800 bg-slate-100 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-300">
+
+    <!-- Config Modal -->
+    <div id="configModal" class="fixed inset-0 z-50 bg-black/50 hidden flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-2xl w-full max-w-md mx-4 border border-slate-200 dark:border-slate-700">
+            <h2 class="text-xl font-bold mb-4 text-slate-800 dark:text-white"><i class="fa-solid fa-server mr-2 text-blue-600"></i>Konfigurasi Server</h2>
+            <p class="text-sm text-slate-600 dark:text-slate-300 mb-4">Masukkan URL Web App dari Google Apps Script Anda untuk menghubungkan database.</p>
+            <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/.../exec" class="w-full p-3 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 dark:text-white rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+            <div class="flex justify-end gap-2">
+                <button onclick="useDemoMode()" class="px-4 py-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-sm font-medium">Gunakan Mode Demo</button>
+                <button onclick="saveConfig()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition shadow-lg shadow-blue-500/30">Simpan & Hubungkan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Navigation -->
+    <nav class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 h-16 flex items-center justify-between px-4 sm:px-6 shrink-0 z-20">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 text-white p-2 rounded-lg shadow-lg shadow-blue-600/20">
+                <i class="fa-solid fa-cash-register"></i>
+            </div>
+            <h1 class="font-bold text-lg hidden sm:block text-slate-800 dark:text-white">Kasir UMKM</h1>
+        </div>
+        
+        <div class="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-lg">
+            <button onclick="switchTab('pos')" id="btn-pos" class="px-4 py-2 rounded-md text-sm font-medium transition-all bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-300">Kasir</button>
+            <button onclick="switchTab('stock')" id="btn-stock" class="px-4 py-2 rounded-md text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all">Stok</button>
+            <button onclick="switchTab('history')" id="btn-history" class="px-4 py-2 rounded-md text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all">Riwayat</button>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button onclick="toggleTheme()" id="themeToggleBtn" class="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-blue-600 dark:hover:text-yellow-400 bg-slate-50 dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-slate-600 transition-all">
+                <i class="fa-solid fa-moon"></i>
+            </button>
+            <button onclick="openConfig()" class="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 transition-all">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 overflow-hidden relative">
+        
+        <!-- POS VIEW -->
+        <div id="view-pos" class="h-full flex flex-col md:flex-row transition-opacity duration-300">
+            <!-- Product Grid -->
+            <div class="flex-1 flex flex-col h-full overflow-hidden relative">
+                <!-- Search Bar -->
+                <div class="p-4 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm sticky top-0 z-10 border-b border-slate-100 dark:border-slate-800">
+                    <div class="relative">
+                        <i class="fa-solid fa-search absolute left-3 top-3 text-slate-400"></i>
+                        <input type="text" id="searchProduct" onkeyup="filterProducts()" placeholder="Cari nama produk..." class="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-white rounded-xl shadow-sm focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900 focus:border-blue-400 outline-none transition placeholder-slate-400">
+                    </div>
+                </div>
+
+                <!-- Grid -->
+                <div id="productGrid" class="flex-1 overflow-y-auto p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 pb-24 md:pb-4">
+                    <div class="flex items-center justify-center col-span-full h-64 text-slate-400 flex-col">
+                        <div class="loader mb-4 border-slate-300 border-t-blue-500"></div>
+                        <p>Memuat produk...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cart Sidebar -->
+            <div class="w-full md:w-96 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 flex flex-col h-[40vh] md:h-full absolute bottom-0 md:relative shadow-[0_-4px_20px_rgba(0,0,0,0.1)] md:shadow-none z-30 rounded-t-2xl md:rounded-none transition-transform duration-300 transform translate-y-0">
+                <div class="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                    <h2 class="font-bold text-slate-700 dark:text-slate-200"><i class="fa-solid fa-cart-shopping mr-2"></i>Keranjang</h2>
+                    <span id="cartCount" class="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-bold px-2 py-1 rounded-full">0 Item</span>
+                </div>
+
+                <div id="cartItems" class="flex-1 overflow-y-auto p-4 space-y-3">
+                    <!-- Cart Items injected here -->
+                </div>
+
+                <div class="p-4 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700">
+                    <div class="flex justify-between mb-2 text-sm">
+                        <span class="text-slate-500 dark:text-slate-400">Subtotal</span>
+                        <span id="cartTotal" class="font-bold text-slate-800 dark:text-white">Rp 0</span>
+                    </div>
+                    <button onclick="processCheckout()" id="btnCheckout" disabled class="w-full bg-slate-800 dark:bg-slate-700 text-white py-3 rounded-xl font-bold hover:bg-slate-900 dark:hover:bg-slate-600 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-slate-500/20 dark:shadow-none">
+                        Bayar Sekarang
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- STOCK VIEW -->
+        <div id="view-stock" class="hidden h-full flex flex-col p-4 sm:p-6 overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-slate-800 dark:text-white">Manajemen Stok</h2>
+                <button onclick="openAddProductModal()" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition shadow-lg shadow-green-600/20">
+                    <i class="fa-solid fa-plus mr-2"></i>Tambah
+                </button>
+            </div>
+            
+            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 font-medium border-b border-slate-200 dark:border-slate-700">
+                        <tr>
+                            <th class="p-4 w-16">Gbr</th>
+                            <th class="p-4">Nama Produk</th>
+                            <th class="p-4">Kategori</th>
+                            <th class="p-4 text-right">Harga</th>
+                            <th class="p-4 text-center">Stok</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stockTableBody">
+                        <!-- Stock rows -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- HISTORY VIEW -->
+        <div id="view-history" class="hidden h-full flex flex-col p-4 sm:p-6 overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-slate-800 dark:text-white">Riwayat Transaksi</h2>
+                <button onclick="fetchTransactions()" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm"><i class="fa-solid fa-rotate-right mr-1"></i> Refresh</button>
+            </div>
+
+            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 font-medium border-b border-slate-200 dark:border-slate-700">
+                        <tr>
+                            <th class="p-4">ID Transaksi</th>
+                            <th class="p-4">Waktu</th>
+                            <th class="p-4">Item</th>
+                            <th class="p-4 text-right">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <!-- History rows -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Modal Tambah Produk (Updated for File Upload) -->
+    <div id="addProductModal" class="fixed inset-0 z-40 bg-black/50 hidden flex items-center justify-center backdrop-blur-sm">
+        <form onsubmit="submitProduct(event)" class="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-2xl w-full max-w-sm mx-4 border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto">
+            <h3 class="font-bold text-lg mb-4 text-slate-800 dark:text-white">Tambah Produk Baru</h3>
+            <div class="space-y-3">
+                <input type="text" name="name" placeholder="Nama Produk" required class="w-full p-2 border dark:border-slate-600 bg-white dark:bg-slate-700 dark:text-white rounded-lg text-sm placeholder-slate-400 focus:border-blue-500 outline-none">
+                <input type="text" name="category" placeholder="Kategori" required class="w-full p-2 border dark:border-slate-600 bg-white dark:bg-slate-700 dark:text-white rounded-lg text-sm placeholder-slate-400 focus:border-blue-500 outline-none">
+                <input type="number" name="price" placeholder="Harga (Rp)" required class="w-full p-2 border dark:border-slate-600 bg-white dark:bg-slate-700 dark:text-white rounded-lg text-sm placeholder-slate-400 focus:border-blue-500 outline-none">
+                <input type="number" name="stock" placeholder="Stok Awal" required class="w-full p-2 border dark:border-slate-600 bg-white dark:bg-slate-700 dark:text-white rounded-lg text-sm placeholder-slate-400 focus:border-blue-500 outline-none">
+                
+                <!-- File Input -->
+                <div class="pt-2">
+                    <label class="block text-xs text-slate-500 dark:text-slate-400 mb-2 font-medium">Foto Produk</label>
+                    <div class="flex items-center gap-3">
+                        <div id="previewBox" class="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center overflow-hidden border border-slate-200 dark:border-slate-600">
+                            <i class="fa-solid fa-image text-slate-400"></i>
+                        </div>
+                        <div class="flex-1">
+                            <label class="cursor-pointer bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-lg text-xs font-medium transition inline-block text-center w-full">
+                                <i class="fa-solid fa-upload mr-2"></i>Pilih Foto
+                                <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageSelect(this)">
+                            </label>
+                            <p class="text-[10px] text-slate-400 mt-1">Maks 2MB. Otomatis dikompres.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button type="button" onclick="closeAddProductModal()" class="px-4 py-2 text-slate-500 dark:text-slate-400 text-sm">Batal</button>
+                <button type="submit" id="btnSaveProduct" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 shadow-lg shadow-green-600/30">Simpan</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed top-4 right-4 bg-slate-800 dark:bg-slate-700 text-white px-6 py-3 rounded-lg shadow-xl transform translate-x-full transition-transform duration-300 z-50 flex items-center gap-3 border dark:border-slate-600">
+        <i class="fa-solid fa-check-circle text-green-400"></i>
+        <span id="toastMsg">Berhasil disimpan</span>
+    </div>
+
+    <script>
+        // STATE MANAGEMENT
+        let API_URL = localStorage.getItem('umkm_pos_api') || '';
+        let isDemo = false;
+        let products = [];
+        let cart = [];
+        let tempImageBase64 = null; // Menyimpan data gambar sementara
+        
+        // MOCK DATA
+        const mockProducts = [
+            { id: 'P01', name: 'Kopi Susu Gula Aren', price: 18000, stock: 50, category: 'Minuman', image: 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=300&h=300' },
+            { id: 'P02', name: 'Americano', price: 15000, stock: 30, category: 'Minuman', image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&q=80&w=300&h=300' },
+            { id: 'P03', name: 'Roti Bakar Coklat', price: 12000, stock: 20, category: 'Makanan', image: 'https://images.unsplash.com/photo-1584776293029-4bd74f29c048?auto=format&fit=crop&q=80&w=300&h=300' },
+            { id: 'P04', name: 'Es Teh Manis', price: 5000, stock: 100, category: 'Minuman', image: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&q=80&w=300&h=300' },
+        ];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            if (!API_URL) {
+                document.getElementById('configModal').classList.remove('hidden');
+            } else {
+                fetchProducts();
+            }
+        });
+
+        // --- CORE FUNCTIONS ---
+        async function fetchProducts() {
+            if (isDemo) return;
+            
+            showLoader(true);
+            try {
+                const response = await fetch(`${API_URL}?action=getProducts`);
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    products = result.data;
+                    renderProducts();
+                    renderStock();
+                } else {
+                    console.error(result);
+                    showToast('Gagal memuat data', true);
+                }
+            } catch (error) {
+                console.error(error);
+                showToast('Gagal koneksi server', true);
+            } finally {
+                showLoader(false);
+            }
+        }
+
+        function renderProducts(filter = '') {
+            const grid = document.getElementById('productGrid');
+            grid.innerHTML = '';
+            
+            const filtered = products.filter(p => p.name.toLowerCase().includes(filter.toLowerCase()));
+
+            if (filtered.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center text-slate-400 mt-10">Produk tidak ditemukan</div>`;
+                return;
+            }
+
+            filtered.forEach(p => {
+                const card = document.createElement('div');
+                card.className = 'bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm hover:shadow-md border border-slate-100 dark:border-slate-700 cursor-pointer transition active:scale-95 flex flex-col justify-between h-full group overflow-hidden';
+                card.onclick = () => addToCart(p.id);
+                
+                const iconColor = p.category.includes('Minum') ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'text-orange-500 bg-orange-50 dark:bg-orange-900/30';
+                
+                let imageHtml = '';
+                if (p.image && p.image.startsWith('http')) {
+                    imageHtml = `<div class="w-full h-32 mb-3 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
+                        <img src="${p.image}" alt="${p.name}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" onerror="this.onerror=null;this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center ${iconColor}\\'><i class=\\'fa-solid fa-image text-3xl\\'></i></div>'">
+                        <span class="absolute top-2 right-2 text-[10px] bg-black/50 text-white px-2 py-0.5 rounded-full backdrop-blur-sm">${p.stock} stok</span>
+                    </div>`;
+                } else {
+                    imageHtml = `
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="w-12 h-12 rounded-lg ${iconColor} flex items-center justify-center">
+                            <i class="fa-solid fa-cube text-xl"></i>
+                        </div>
+                        <span class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-2 py-1 rounded-full border border-transparent dark:border-slate-600">${p.stock} stok</span>
+                    </div>`;
+                }
+
+                card.innerHTML = `
+                    ${imageHtml}
+                    <div>
+                        <h3 class="font-bold text-slate-800 dark:text-white leading-tight mb-1 text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">${p.name}</h3>
+                        <p class="text-[10px] text-slate-500 dark:text-slate-400 mb-2">${p.category}</p>
+                    </div>
+                    <div class="font-bold text-blue-600 dark:text-blue-400 text-sm">Rp ${formatNumber(p.price)}</div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function renderStock() {
+            const tbody = document.getElementById('stockTableBody');
+            tbody.innerHTML = '';
+            
+            products.forEach(p => {
+                let imgCell = `<div class="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-xs text-slate-400"><i class="fa-solid fa-cube"></i></div>`;
+                if(p.image && p.image.startsWith('http')) {
+                    imgCell = `<img src="${p.image}" class="w-8 h-8 rounded object-cover bg-slate-100" onerror="this.src=''">`;
+                }
+
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-slate-50 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition';
+                tr.innerHTML = `
+                    <td class="p-4">${imgCell}</td>
+                    <td class="p-4 font-medium text-slate-800 dark:text-slate-200">${p.name}</td>
+                    <td class="p-4 text-slate-500 dark:text-slate-400">${p.category}</td>
+                    <td class="p-4 text-right text-slate-700 dark:text-slate-300">Rp ${formatNumber(p.price)}</td>
+                    <td class="p-4 text-center">
+                        <span class="${p.stock < 10 ? 'text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400' : 'text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400'} px-2 py-1 rounded text-xs font-bold">
+                            ${p.stock}
+                        </span>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // --- CART LOGIC ---
+        function addToCart(id) {
+            const product = products.find(p => p.id === id);
+            if (!product || product.stock <= 0) { showToast('Stok habis!', true); return; }
+            const existing = cart.find(c => c.id === id);
+            if (existing) {
+                if (existing.qty < product.stock) existing.qty++;
+                else showToast('Stok maksimum', true);
+            } else {
+                cart.push({ ...product, qty: 1 });
+            }
+            updateCartUI();
+        }
+
+        function updateQty(id, change) {
+            const item = cart.find(c => c.id === id);
+            const product = products.find(p => p.id === id);
+            if (item) {
+                const newQty = item.qty + change;
+                if (newQty > 0 && newQty <= product.stock) item.qty = newQty;
+                else if (newQty <= 0) cart = cart.filter(c => c.id !== id);
+                updateCartUI();
+            }
+        }
+
+        function updateCartUI() {
+            const container = document.getElementById('cartItems');
+            const btn = document.getElementById('btnCheckout');
+            container.innerHTML = '';
+            let total = 0, count = 0;
+
+            if (cart.length === 0) {
+                container.innerHTML = `<div class="text-center text-slate-400 mt-10 text-sm"><i class="fa-solid fa-basket-shopping text-4xl mb-2 opacity-30"></i><p>Keranjang kosong</p></div>`;
+                btn.disabled = true;
+                btn.classList.add('bg-slate-800', 'dark:bg-slate-700'); btn.classList.remove('bg-blue-600');
+            } else {
+                cart.forEach(item => {
+                    total += item.price * item.qty; count += item.qty;
+                    let thumbHtml = item.image && item.image.startsWith('http') ? `<img src="${item.image}" class="w-8 h-8 rounded object-cover mr-2 bg-slate-100">` : '';
+                    
+                    container.innerHTML += `
+                        <div class="flex justify-between items-center bg-white dark:bg-slate-700 p-2 rounded-lg border border-slate-100 dark:border-slate-600 shadow-sm mb-2">
+                            <div class="flex flex-1 items-center overflow-hidden">
+                                ${thumbHtml}
+                                <div class="min-w-0">
+                                    <h4 class="font-bold text-xs text-slate-800 dark:text-slate-100 truncate">${item.name}</h4>
+                                    <div class="text-[10px] text-blue-600 dark:text-blue-300 font-semibold">@ Rp ${formatNumber(item.price)}</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 ml-2 shrink-0">
+                                <button onclick="updateQty('${item.id}', -1)" class="w-6 h-6 rounded bg-slate-100 dark:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs flex items-center justify-center"><i class="fa-solid fa-minus"></i></button>
+                                <span class="text-xs font-bold w-4 text-center text-slate-800 dark:text-white">${item.qty}</span>
+                                <button onclick="updateQty('${item.id}', 1)" class="w-6 h-6 rounded bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 text-xs flex items-center justify-center"><i class="fa-solid fa-plus"></i></button>
+                            </div>
+                        </div>`;
+                });
+                btn.disabled = false;
+                btn.classList.remove('bg-slate-800', 'dark:bg-slate-700'); btn.classList.add('bg-blue-600');
+            }
+            document.getElementById('cartCount').textContent = count + ' Item';
+            document.getElementById('cartTotal').textContent = 'Rp ' + formatNumber(total);
+        }
+
+        async function processCheckout() {
+            if (cart.length === 0) return;
+            const btn = document.getElementById('btnCheckout');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Memproses...'; btn.disabled = true;
+
+            const payload = {
+                action: 'checkout',
+                cart: cart.map(c => ({ id: c.id, name: c.name, qty: c.qty })),
+                total: cart.reduce((s, i) => s + (i.price * i.qty), 0),
+                method: 'CASH'
+            };
+
+            try {
+                if (isDemo) {
+                    await new Promise(r => setTimeout(r, 1000));
+                    cart.forEach(c => { const p = products.find(prod => prod.id === c.id); if(p) p.stock -= c.qty; });
+                } else {
+                    await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                    await fetchProducts();
+                }
+                showToast('Transaksi Berhasil!'); cart = []; updateCartUI();
+                if(isDemo) { renderProducts(); renderStock(); }
+            } catch (err) { console.error(err); showToast('Transaksi Gagal', true); }
+            finally { btn.innerHTML = originalText; btn.disabled = false; }
+        }
+
+        // --- IMAGE HANDLING & COMPRESSION ---
+        
+        function handleImageSelect(input) {
+            const file = input.files[0];
+            if (file) {
+                // Limit size 2MB before compression check
+                if (file.size > 5 * 1024 * 1024) {
+                    alert("File terlalu besar (Maks 5MB)");
+                    input.value = '';
+                    return;
+                }
+                compressImage(file);
+            }
+        }
+
+        function compressImage(file) {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 600; // Resize agar ringan
+                    const scaleSize = MAX_WIDTH / img.width;
+                    canvas.width = MAX_WIDTH;
+                    canvas.height = img.height * scaleSize;
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    // Compress JPEG quality 0.6
+                    tempImageBase64 = canvas.toDataURL('image/jpeg', 0.6);
+                    
+                    // Show Preview
+                    document.getElementById('previewBox').innerHTML = `<img src="${tempImageBase64}" class="w-full h-full object-cover">`;
+                }
+            }
+        }
+
+        // --- ADD PRODUCT ---
+        function openAddProductModal() { document.getElementById('addProductModal').classList.remove('hidden'); }
+        function closeAddProductModal() { 
+            document.getElementById('addProductModal').classList.add('hidden');
+            document.getElementById('previewBox').innerHTML = '<i class="fa-solid fa-image text-slate-400"></i>';
+            document.getElementById('imageInput').value = '';
+            tempImageBase64 = null;
+        }
+
+        async function submitProduct(e) {
+            e.preventDefault();
+            const form = e.target;
+            const btn = document.getElementById('btnSaveProduct');
+            
+            const payload = {
+                action: 'addProduct',
+                name: form.name.value,
+                category: form.category.value,
+                price: parseInt(form.price.value),
+                stock: parseInt(form.stock.value),
+                image: tempImageBase64 || ''
+            };
+
+            btn.innerText = 'Upload & Simpan...';
+            btn.disabled = true;
+
+            try {
+                if (isDemo) {
+                    products.push({ id: 'P'+Math.floor(Math.random()*1000), ...payload });
+                    renderProducts(); renderStock();
+                } else {
+                    await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                    await fetchProducts();
+                }
+                showToast('Produk ditambahkan');
+                closeAddProductModal();
+                form.reset();
+            } catch (err) {
+                console.error(err);
+                showToast('Gagal: ' + err.message, true);
+            } finally {
+                btn.innerText = 'Simpan';
+                btn.disabled = false;
+            }
+        }
+
+        // --- UTILS ---
+        function initTheme() {
+            if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark'); updateThemeIcon(true);
+            } else { document.documentElement.classList.remove('dark'); updateThemeIcon(false); }
+        }
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+            const isDark = document.documentElement.classList.contains('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light'); updateThemeIcon(isDark);
+        }
+        function updateThemeIcon(isDark) {
+            document.getElementById('themeToggleBtn').innerHTML = isDark ? '<i class="fa-solid fa-sun text-yellow-400"></i>' : '<i class="fa-solid fa-moon"></i>';
+        }
+        function openConfig() { document.getElementById('configModal').classList.remove('hidden'); document.getElementById('apiUrlInput').value = API_URL; }
+        function saveConfig() {
+            const url = document.getElementById('apiUrlInput').value.trim();
+            if (url) { API_URL = url; localStorage.setItem('umkm_pos_api', url); isDemo = false; document.getElementById('configModal').classList.add('hidden'); showToast('Terhubung'); fetchProducts(); }
+        }
+        function useDemoMode() { isDemo = true; API_URL = 'demo'; document.getElementById('configModal').classList.add('hidden'); products = [...mockProducts]; renderProducts(); renderStock(); showToast('Mode Demo'); }
+        async function fetchTransactions() {
+            const tbody = document.getElementById('historyTableBody');
+            if(isDemo) { tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-400">Demo Mode</td></tr>`; return; }
+            tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center"><div class="loader mx-auto"></div></td></tr>`;
+            try {
+                const res = await fetch(`${API_URL}?action=getTransactions`);
+                const result = await res.json();
+                tbody.innerHTML = '';
+                if(result.data?.length) {
+                    result.data.forEach(t => {
+                        tbody.innerHTML += `<tr class="border-b border-slate-50 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50"><td class="p-4 font-mono text-xs text-slate-500">${t.id}</td><td class="p-4 text-slate-700 dark:text-slate-300">${new Date(t.date).toLocaleString('id-ID')}</td><td class="p-4 text-xs text-slate-600 dark:text-slate-400">${t.items}</td><td class="p-4 text-right font-bold text-slate-800 dark:text-slate-200">Rp ${formatNumber(t.total)}</td></tr>`;
+                    });
+                } else tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-400">Belum ada transaksi</td></tr>`;
+            } catch(e) { tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-400">Gagal load riwayat</td></tr>`; }
+        }
+        function filterProducts() { renderProducts(document.getElementById('searchProduct').value); }
+        function switchTab(tab) {
+            ['pos', 'stock', 'history'].forEach(t => {
+                const btn = document.getElementById(`btn-${t}`);
+                if(t===tab) { btn.classList.add('bg-white', 'dark:bg-slate-600', 'shadow-sm', 'text-blue-600', 'dark:text-blue-300'); btn.classList.remove('text-slate-500', 'dark:text-slate-400'); }
+                else { btn.classList.remove('bg-white', 'dark:bg-slate-600', 'shadow-sm', 'text-blue-600', 'dark:text-blue-300'); btn.classList.add('text-slate-500', 'dark:text-slate-400'); }
+            });
+            document.getElementById('view-pos').className = tab==='pos'?'h-full flex flex-col md:flex-row':'hidden';
+            document.getElementById('view-stock').className = tab==='stock'?'h-full flex flex-col p-6 overflow-y-auto':'hidden';
+            document.getElementById('view-history').className = tab==='history'?'h-full flex flex-col p-6 overflow-y-auto':'hidden';
+            if(tab==='history' && !isDemo) fetchTransactions();
+        }
+        function formatNumber(num) { return new Intl.NumberFormat('id-ID').format(num); }
+        function showToast(msg, err=false) {
+            const t = document.getElementById('toast'); document.getElementById('toastMsg').innerText = msg;
+            t.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-xl transform transition-transform duration-300 z-50 flex items-center gap-3 border dark:border-slate-600 ${err?'bg-red-600':'bg-slate-800 dark:bg-slate-700'} text-white translate-x-0`;
+            setTimeout(() => { t.classList.add('translate-x-full'); t.classList.remove('translate-x-0'); }, 3000);
+        }
+        function showLoader(show) { document.getElementById('productGrid').innerHTML = show ? `<div class="flex items-center justify-center col-span-full h-64 flex-col"><div class="loader mb-4 border-slate-300 border-t-blue-500"></div><p class="text-slate-400">Sinkronisasi...</p></div>` : ''; }
+    </script>
+</body>
+</html>
