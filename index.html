@@ -288,7 +288,7 @@
                 let imageHtml = '';
                 if (p.image && p.image.startsWith('http')) {
                     imageHtml = `<div class="w-full h-32 mb-3 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
-                        <img src="${p.image}" alt="${p.name}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" onerror="this.onerror=null;this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center ${iconColor}\\'><i class=\\'fa-solid fa-image text-3xl\\'></i></div>'">
+                        <img src="${p.image}" alt="${p.name}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/400?text=No+Image&font=roboto'">
                         <span class="absolute top-2 right-2 text-[10px] bg-black/50 text-white px-2 py-0.5 rounded-full backdrop-blur-sm">${p.stock} stok</span>
                     </div>`;
                 } else {

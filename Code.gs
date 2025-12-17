@@ -9,18 +9,27 @@ function checkPermissions() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   console.log("Akses Spreadsheet: OK - Nama File: " + ss.getName());
 
-  // Memancing permintaan izin DriveApp
-  // Kami hanya melist folder, tidak mengubah apa-apa.
-  const folders = DriveApp.getFoldersByName("Data Kasir App");
-  console.log("Akses Google Drive: OK");
+  const folderName = "Data Kasir App";
+  const folders = DriveApp.getFoldersByName(folderName);
+  let folder;
 
-  if (!folders.hasNext()) {
-    console.log("Folder 'Data Kasir App' belum ada, akan dibuat otomatis saat upload pertama.");
+  if (folders.hasNext()) {
+    folder = folders.next();
+    console.log("Folder ditemukan.");
   } else {
-    console.log("Folder 'Data Kasir App' ditemukan.");
+    console.log("Folder belum ada, membuat folder baru...");
+    folder = DriveApp.createFolder(folderName);
+    folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   }
 
-  return "Izin berhasil diberikan! Sekarang deploy ulang web app Anda.";
+  // --- PAKSA TES IZIN TULIS (WRITE) ---
+  console.log("Mengecek izin Tulis (Write)...");
+  const tempFile = folder.createFile("tes_izin_sementara.txt", "Isi tes");
+  tempFile.setTrashed(true); // Langsung hapus
+
+  console.log("Akses Drive Read/Write: OK SEMPURNA.");
+
+  return "Izin LENGKAP berhasil diberikan! Sekarang deploy ulang web app Anda (Pilih 'New Version').";
 }
 
 function doGet(e) {
@@ -111,7 +120,7 @@ function addProduct(ss, data) {
     } catch (e) {
       let msg = e.toString();
       if (msg.includes("permission") || msg.includes("DriveApp")) {
-        msg = "IZIN DITOLAK: Anda belum memberi izin akses Google Drive. Jalankan fungsi 'checkPermissions' di editor script dulu.";
+        msg = "IZIN DITOLAK (Detail: " + msg + "). Jalankan 'checkPermissions' lagi.";
       }
       return { status: 'error', message: 'Gagal upload gambar: ' + msg };
     }
@@ -150,8 +159,9 @@ function uploadToDrive(base64Data, fileName) {
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
   // Return URL Thumbnail/View yang bisa diakses publik
-  // CORRECTION: Removed invalid markdown syntax
-  return "https://drive.google.com/uc?export=view&id=" + file.getId();
+  // URL format baru yang lebih stabil (lh3.googleusercontent.com/d/...)
+  // Format drive.google.com/uc?export=view sering kena blokir cookie pihak ketiga
+  return "https://lh3.googleusercontent.com/d/" + file.getId();
 }
 
 // --- FUNGSI TRANSAKSI ---
