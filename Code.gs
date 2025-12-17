@@ -1,5 +1,28 @@
 // --- KODE GOOGLE APPS SCRIPT (FINAL - SUPPORT UPLOAD GAMBAR) ---
 
+/**
+ * FUNGSI PENTING: JALANKAN INI DULU UNTUK MEMBERI IZIN
+ * Klik dropdown fungsi di atas, pilih "checkPermissions", lalu klik "Run".
+ * Google akan meminta izin akses ke Drive dan Spreadsheet.
+ */
+function checkPermissions() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  console.log("Akses Spreadsheet: OK - Nama File: " + ss.getName());
+
+  // Memancing permintaan izin DriveApp
+  // Kami hanya melist folder, tidak mengubah apa-apa.
+  const folders = DriveApp.getFoldersByName("Data Kasir App");
+  console.log("Akses Google Drive: OK");
+
+  if (!folders.hasNext()) {
+    console.log("Folder 'Data Kasir App' belum ada, akan dibuat otomatis saat upload pertama.");
+  } else {
+    console.log("Folder 'Data Kasir App' ditemukan.");
+  }
+
+  return "Izin berhasil diberikan! Sekarang deploy ulang web app Anda.";
+}
+
 function doGet(e) {
   return handleRequest(e);
 }
@@ -86,7 +109,11 @@ function addProduct(ss, data) {
       // Upload ke Google Drive
       imageUrl = uploadToDrive(data.image, id + "_" + data.name);
     } catch (e) {
-      return { status: 'error', message: 'Gagal upload gambar: ' + e.toString() };
+      let msg = e.toString();
+      if (msg.includes("permission") || msg.includes("DriveApp")) {
+        msg = "IZIN DITOLAK: Anda belum memberi izin akses Google Drive. Jalankan fungsi 'checkPermissions' di editor script dulu.";
+      }
+      return { status: 'error', message: 'Gagal upload gambar: ' + msg };
     }
   } else {
     // Jika user memasukkan link manual (bukan upload)
