@@ -94,14 +94,34 @@ function getProducts(ss) {
   // Kolom: ID, Nama, Harga, Stok, Kategori, Gambar
   const data = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
 
-  const products = data.map(row => ({
-    id: row[0],
-    name: row[1],
-    price: row[2],
-    stock: row[3],
-    category: row[4],
-    image: row[5] || '' // Kolom ke-6 (Index 5) adalah URL Gambar
-  })).filter(p => p.id !== '');
+  const products = data.map(row => {
+    // AUTO-REPAIR DATA: Jika ada format gambar Markdown yang rusak dari bug sebelumnya
+    // Format Rusak: "[https://...](https://...)FILE_ID"
+    let img = row[5] || '';
+    if (img && img.toString().startsWith('[') && img.toString().includes('](')) {
+      // Ambil bagian ID di akhir string.
+      // Biasanya ID ada setelah ')' terakhir jika formatnya [text](url)ID
+      // Atau jika formatnya cuma [url](url), kita coba ambil ID dari URL nya.
+      // Cara paling aman: Ambil 30-40 karakter terakhir yang merupakan alphanumeric.
+      // Tapi karena kita tahu polanya: "return 'markdown' + file.getId()", maka ID ada di paling ujung.
+      const parts = img.split(')');
+      if (parts.length > 1) {
+        const potentialId = parts[parts.length - 1]; // Bagian setelah ')' terakhir
+        if (potentialId && potentialId.length > 10) {
+           img = "https://lh3.googleusercontent.com/d/" + potentialId;
+        }
+      }
+    }
+
+    return {
+      id: row[0],
+      name: row[1],
+      price: row[2],
+      stock: row[3],
+      category: row[4],
+      image: img // Gunakan image yang sudah diperbaiki
+    };
+  }).filter(p => p.id !== '');
 
   return { status: 'success', data: products };
 }
@@ -160,7 +180,6 @@ function uploadToDrive(base64Data, fileName) {
 
   // Return URL Thumbnail/View yang bisa diakses publik
   // URL format baru yang lebih stabil (lh3.googleusercontent.com/d/...)
-  // Format drive.google.com/uc?export=view sering kena blokir cookie pihak ketiga
   return "https://lh3.googleusercontent.com/d/" + file.getId();
 }
 

@@ -271,7 +271,8 @@
             const grid = document.getElementById('productGrid');
             grid.innerHTML = '';
             
-            const filtered = products.filter(p => p.name.toLowerCase().includes(filter.toLowerCase()));
+            // Fix Crash: Ensure p.name is treated as string
+            const filtered = products.filter(p => String(p.name || '').toLowerCase().includes(filter.toLowerCase()));
 
             if (filtered.length === 0) {
                 grid.innerHTML = `<div class="col-span-full text-center text-slate-400 mt-10">Produk tidak ditemukan</div>`;
@@ -279,38 +280,42 @@
             }
 
             filtered.forEach(p => {
-                const card = document.createElement('div');
-                card.className = 'bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm hover:shadow-md border border-slate-100 dark:border-slate-700 cursor-pointer transition active:scale-95 flex flex-col justify-between h-full group overflow-hidden';
-                card.onclick = () => addToCart(p.id);
-                
-                const safeCategory = String(p.category || '');
-                const iconColor = safeCategory.includes('Minum') ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'text-orange-500 bg-orange-50 dark:bg-orange-900/30';
-                
-                let imageHtml = '';
-                if (p.image && p.image.startsWith('http')) {
-                    imageHtml = `<div class="w-full h-32 mb-3 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
-                        <img src="${p.image}" alt="${p.name}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/400?text=No+Image&font=roboto'">
-                        <span class="absolute top-2 right-2 text-[10px] bg-black/50 text-white px-2 py-0.5 rounded-full backdrop-blur-sm">${p.stock} stok</span>
-                    </div>`;
-                } else {
-                    imageHtml = `
-                    <div class="flex justify-between items-start mb-3">
-                        <div class="w-12 h-12 rounded-lg ${iconColor} flex items-center justify-center">
-                            <i class="fa-solid fa-cube text-xl"></i>
-                        </div>
-                        <span class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-2 py-1 rounded-full border border-transparent dark:border-slate-600">${p.stock} stok</span>
-                    </div>`;
-                }
+                try {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm hover:shadow-md border border-slate-100 dark:border-slate-700 cursor-pointer transition active:scale-95 flex flex-col justify-between h-full group overflow-hidden';
+                    card.onclick = () => addToCart(p.id);
 
-                card.innerHTML = `
-                    ${imageHtml}
-                    <div>
-                        <h3 class="font-bold text-slate-800 dark:text-white leading-tight mb-1 text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">${p.name}</h3>
-                        <p class="text-[10px] text-slate-500 dark:text-slate-400 mb-2">${p.category}</p>
-                    </div>
-                    <div class="font-bold text-blue-600 dark:text-blue-400 text-sm">Rp ${formatNumber(p.price)}</div>
-                `;
-                grid.appendChild(card);
+                    const safeCategory = String(p.category || '');
+                    const iconColor = safeCategory.includes('Minum') ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'text-orange-500 bg-orange-50 dark:bg-orange-900/30';
+
+                    let imageHtml = '';
+                    if (p.image && p.image.startsWith('http')) {
+                        imageHtml = `<div class="w-full h-32 mb-3 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
+                            <img src="${p.image}" alt="${p.name}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/400?text=No+Image&font=roboto'">
+                            <span class="absolute top-2 right-2 text-[10px] bg-black/50 text-white px-2 py-0.5 rounded-full backdrop-blur-sm">${p.stock} stok</span>
+                        </div>`;
+                    } else {
+                        imageHtml = `
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="w-12 h-12 rounded-lg ${iconColor} flex items-center justify-center">
+                                <i class="fa-solid fa-cube text-xl"></i>
+                            </div>
+                            <span class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-2 py-1 rounded-full border border-transparent dark:border-slate-600">${p.stock} stok</span>
+                        </div>`;
+                    }
+
+                    card.innerHTML = `
+                        ${imageHtml}
+                        <div>
+                            <h3 class="font-bold text-slate-800 dark:text-white leading-tight mb-1 text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">${p.name}</h3>
+                            <p class="text-[10px] text-slate-500 dark:text-slate-400 mb-2">${p.category}</p>
+                        </div>
+                        <div class="font-bold text-blue-600 dark:text-blue-400 text-sm">Rp ${formatNumber(p.price)}</div>
+                    `;
+                    grid.appendChild(card);
+                } catch (e) {
+                    console.error("Skipping malformed product:", p, e);
+                }
             });
         }
 
