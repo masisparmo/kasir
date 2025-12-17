@@ -421,12 +421,16 @@
                     await new Promise(r => setTimeout(r, 1000));
                     cart.forEach(c => { const p = products.find(prod => prod.id === c.id); if(p) p.stock -= c.qty; });
                 } else {
-                    await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                    const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                    const result = await res.json();
+                    if (result.status !== 'success') {
+                        throw new Error(result.message || 'Gagal memproses transaksi');
+                    }
                     await fetchProducts();
                 }
                 showToast('Transaksi Berhasil!'); cart = []; updateCartUI();
                 if(isDemo) { renderProducts(); renderStock(); }
-            } catch (err) { console.error(err); showToast('Transaksi Gagal', true); }
+            } catch (err) { console.error(err); showToast('Transaksi Gagal: ' + (err.message || ''), true); }
             finally { btn.innerHTML = originalText; btn.disabled = false; }
         }
 
@@ -501,7 +505,11 @@
                     products.push({ id: 'P'+Math.floor(Math.random()*1000), ...payload });
                     renderProducts(); renderStock();
                 } else {
-                    await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                    const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                    const result = await res.json();
+                    if (result.status !== 'success') {
+                        throw new Error(result.message || 'Gagal menyimpan data ke server');
+                    }
                     await fetchProducts();
                 }
                 showToast('Produk ditambahkan');
