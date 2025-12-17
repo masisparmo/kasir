@@ -96,17 +96,28 @@ function getProducts(ss) {
 
   const products = data.map(row => {
     // AUTO-REPAIR DATA: Jika ada format gambar Markdown yang rusak dari bug sebelumnya
-    // Format Rusak: "[https://...](https://...)FILE_ID"
     let img = row[5] || '';
-    if (img && img.toString().startsWith('[') && img.toString().includes('](')) {
-      // Ambil bagian ID di akhir string.
-      // Biasanya ID ada setelah ')' terakhir jika formatnya [text](url)ID
-      // Atau jika formatnya cuma [url](url), kita coba ambil ID dari URL nya.
-      // Cara paling aman: Ambil 30-40 karakter terakhir yang merupakan alphanumeric.
-      // Tapi karena kita tahu polanya: "return 'markdown' + file.getId()", maka ID ada di paling ujung.
-      const parts = img.split(')');
+    const imgStr = String(img); // Pastikan string
+
+    // Cek format rusak: "[url](url)ID" atau "[url](url)"
+    if (imgStr.startsWith('[')) {
+      // Kita coba ekstrak ID file nya.
+      // Pola yang mungkin terjadi akibat bug: "[https://...](https://...)FILE_ID_DISINI"
+      // Atau sekedar "[https://...](https://...)" tanpa ID di luar (jarang, tapi mungkin)
+
+      // Ambil bagian setelah tanda ')' terakhir
+      const parts = imgStr.split(')');
       if (parts.length > 1) {
-        const potentialId = parts[parts.length - 1]; // Bagian setelah ')' terakhir
+        let potentialId = parts[parts.length - 1].trim();
+
+        // Jika ID kosong (berarti formatnya [text](url)), kita coba ambil dari dalam kurung ()
+        if (!potentialId || potentialId.length < 5) {
+             const innerUrl = imgStr.substring(imgStr.lastIndexOf('(') + 1, imgStr.lastIndexOf(')'));
+             if (innerUrl.includes('id=')) {
+                potentialId = innerUrl.split('id=')[1];
+             }
+        }
+
         if (potentialId && potentialId.length > 10) {
            img = "https://lh3.googleusercontent.com/d/" + potentialId;
         }
@@ -119,7 +130,7 @@ function getProducts(ss) {
       price: row[2],
       stock: row[3],
       category: row[4],
-      image: img // Gunakan image yang sudah diperbaiki
+      image: img
     };
   }).filter(p => p.id !== '');
 
