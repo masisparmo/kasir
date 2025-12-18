@@ -271,19 +271,32 @@
             const grid = document.getElementById('productGrid');
             grid.innerHTML = '';
             
-            // Fix Crash: Ensure p.name is treated as string
-            const filtered = products.filter(p => String(p.name || '').toLowerCase().includes(filter.toLowerCase()));
+            // SECURITY & SAFETY: Force filter to string
+            const safeFilter = String(filter || '').toLowerCase();
+
+            // Fix Crash: Ensure p is valid object and p.name is string
+            const filtered = products.filter(p => p && String(p.name || '').toLowerCase().includes(safeFilter));
 
             // DEBUG INFO (Visible to User for troubleshooting)
-            if (filtered.length > 0) {
+            if (products.length > 0) {
                  const debugInfo = document.createElement('div');
-                 debugInfo.className = "col-span-full text-[10px] text-slate-400 mb-2 text-right";
-                 debugInfo.innerText = `Menampilkan ${filtered.length} dari ${products.length} produk`;
+                 debugInfo.className = "col-span-full text-[10px] text-slate-400 mb-2 text-right font-mono";
+                 debugInfo.innerText = `Debug: Total=${products.length}, Filtered=${filtered.length}, Query="${safeFilter}"`;
                  grid.appendChild(debugInfo);
             }
 
             if (filtered.length === 0) {
-                grid.innerHTML = `<div class="col-span-full text-center text-slate-400 mt-10">Produk tidak ditemukan (Total Data: ${products.length})</div>`;
+                if (products.length > 0) {
+                     grid.innerHTML = `
+                     <div class="col-span-full text-center text-slate-400 mt-10 flex flex-col items-center">
+                        <i class="fa-solid fa-filter-circle-xmark text-4xl mb-2"></i>
+                        <p>Tidak ada produk yang cocok dengan "${safeFilter}"</p>
+                        <p class="text-xs mt-1">Total Data: ${products.length}</p>
+                        <button onclick="document.getElementById('searchProduct').value=''; renderProducts();" class="mt-4 text-blue-500 text-sm hover:underline">Reset Filter</button>
+                     </div>`;
+                } else {
+                     grid.innerHTML = `<div class="col-span-full text-center text-slate-400 mt-10">Belum ada data produk. Silakan tambah di menu Stok.</div>`;
+                }
                 return;
             }
 
