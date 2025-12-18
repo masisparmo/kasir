@@ -252,18 +252,23 @@
                 const result = await response.json();
                 
                 if (result.status === 'success') {
-                    products = result.data;
+                    products = Array.isArray(result.data) ? result.data : [];
                     renderProducts();
                     renderStock();
                 } else {
                     console.error(result);
                     showToast('Gagal memuat data', true);
+                    showErrorState('Gagal memuat data dari server.');
                 }
             } catch (error) {
                 console.error(error);
                 showToast('Gagal koneksi server', true);
+                showErrorState('Gagal terhubung ke server. Periksa koneksi internet atau URL API.');
             } finally {
-                showLoader(false);
+                // showLoader(false) will be handled by renderProducts or showErrorState
+                // We only call it if we haven't rendered anything yet to clear the loader
+                // But simplified: showLoader(false) just clears grid, so we should NOT call it if we want to keep the Error State
+                // Let's modify showLoader to be smarter OR just don't call it here if we rendered error.
             }
         }
 
@@ -291,13 +296,27 @@
 
             if (filtered.length === 0) {
                 if (products.length > 0) {
-                     grid.innerHTML = `
-                     <div class="col-span-full text-center text-slate-400 mt-10 flex flex-col items-center">
-                        <i class="fa-solid fa-filter-circle-xmark text-4xl mb-2"></i>
-                        <p>Tidak ada produk yang cocok dengan "${safeFilter}"</p>
-                        <p class="text-xs mt-1">Total Data: ${products.length}</p>
-                        <button onclick="document.getElementById('searchProduct').value=''; renderProducts();" class="mt-4 text-blue-500 text-sm hover:underline">Reset Filter</button>
-                     </div>`;
+                    // Safe DOM creation to prevent XSS
+                    const container = document.createElement('div');
+                    container.className = "col-span-full text-center text-slate-400 mt-10 flex flex-col items-center";
+
+                    const icon = document.createElement('i');
+                    icon.className = "fa-solid fa-filter-circle-xmark text-4xl mb-2";
+
+                    const msg = document.createElement('p');
+                    msg.textContent = `Tidak ada produk yang cocok dengan "${safeFilter}"`;
+
+                    const subMsg = document.createElement('p');
+                    subMsg.className = "text-xs mt-1";
+                    subMsg.textContent = `Total Data: ${products.length}`;
+
+                    const btn = document.createElement('button');
+                    btn.className = "mt-4 text-blue-500 text-sm hover:underline";
+                    btn.textContent = "Reset Filter";
+                    btn.onclick = () => { document.getElementById('searchProduct').value=''; renderProducts(); };
+
+                    container.append(icon, msg, subMsg, btn);
+                    grid.appendChild(container);
                 } else {
                      grid.innerHTML = `<div class="col-span-full text-center text-slate-400 mt-10">Belum ada data produk. Silakan tambah di menu Stok.</div>`;
                 }
@@ -615,7 +634,29 @@
             t.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-xl transform transition-transform duration-300 z-50 flex items-center gap-3 border dark:border-slate-600 ${err?'bg-red-600':'bg-slate-800 dark:bg-slate-700'} text-white translate-x-0`;
             setTimeout(() => { t.classList.add('translate-x-full'); t.classList.remove('translate-x-0'); }, 3000);
         }
-        function showLoader(show) { document.getElementById('productGrid').innerHTML = show ? `<div class="flex items-center justify-center col-span-full h-64 flex-col"><div class="loader mb-4 border-slate-300 border-t-blue-500"></div><p class="text-slate-400">Sinkronisasi...</p></div>` : ''; }
+        function showLoader(show) {
+            const grid = document.getElementById('productGrid');
+            if (show) {
+                grid.innerHTML = `<div class="flex items-center justify-center col-span-full h-64 flex-col"><div class="loader mb-4 border-slate-300 border-t-blue-500"></div><p class="text-slate-400">Sinkronisasi...</p></div>`;
+            } else {
+                // Do not clear immediately, let the render function handle it.
+                // Or if we really want to clear:
+                // grid.innerHTML = '';
+            }
+        }
+
+        function showErrorState(msg) {
+            const grid = document.getElementById('productGrid');
+            grid.innerHTML = `
+                <div class="col-span-full flex flex-col items-center justify-center h-64 text-red-500 text-center p-6">
+                    <i class="fa-solid fa-triangle-exclamation text-4xl mb-4"></i>
+                    <p class="font-bold mb-2">Terjadi Kesalahan</p>
+                    <p class="text-sm text-slate-500 mb-4">${msg}</p>
+                    <button onclick="fetchProducts()" class="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm hover:bg-slate-900 transition"><i class="fa-solid fa-rotate-right mr-2"></i>Coba Lagi</button>
+                    <button onclick="useDemoMode()" class="mt-2 text-blue-500 text-xs hover:underline">Gunakan Mode Demo</button>
+                </div>
+            `;
+        }
     </script>
 </body>
 </html>
