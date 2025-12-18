@@ -272,10 +272,14 @@
             grid.innerHTML = '';
             
             // SECURITY & SAFETY: Force filter to string
-            const safeFilter = String(filter || '').toLowerCase();
+            const safeFilter = String(filter || '').trim().toLowerCase();
 
-            // Fix Crash: Ensure p is valid object and p.name is string
-            const filtered = products.filter(p => p && String(p.name || '').toLowerCase().includes(safeFilter));
+            // LOGIC FIX: If filter is empty, return ALL products. Otherwise check name.
+            const filtered = products.filter(p => {
+                if (!p) return false; // Skip nulls
+                if (safeFilter === '') return true; // Show all by default
+                return String(p.name || '').toLowerCase().includes(safeFilter);
+            });
 
             // DEBUG INFO (Visible to User for troubleshooting)
             if (products.length > 0) {
