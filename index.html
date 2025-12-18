@@ -274,8 +274,16 @@
             // Fix Crash: Ensure p.name is treated as string
             const filtered = products.filter(p => String(p.name || '').toLowerCase().includes(filter.toLowerCase()));
 
+            // DEBUG INFO (Visible to User for troubleshooting)
+            if (filtered.length > 0) {
+                 const debugInfo = document.createElement('div');
+                 debugInfo.className = "col-span-full text-[10px] text-slate-400 mb-2 text-right";
+                 debugInfo.innerText = `Menampilkan ${filtered.length} dari ${products.length} produk`;
+                 grid.appendChild(debugInfo);
+            }
+
             if (filtered.length === 0) {
-                grid.innerHTML = `<div class="col-span-full text-center text-slate-400 mt-10">Produk tidak ditemukan</div>`;
+                grid.innerHTML = `<div class="col-span-full text-center text-slate-400 mt-10">Produk tidak ditemukan (Total Data: ${products.length})</div>`;
                 return;
             }
 
@@ -289,9 +297,11 @@
                     const iconColor = safeCategory.includes('Minum') ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'text-orange-500 bg-orange-50 dark:bg-orange-900/30';
 
                     let imageHtml = '';
-                    if (p.image && p.image.startsWith('http')) {
+                    // HARDENED CHECK: Ensure p.image is string before checking startsWith
+                    const imgUrl = String(p.image || '');
+                    if (imgUrl && imgUrl.startsWith('http')) {
                         imageHtml = `<div class="w-full h-32 mb-3 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
-                            <img src="${p.image}" alt="${p.name}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/400?text=No+Image&font=roboto'">
+                            <img src="${imgUrl}" alt="${p.name}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/400?text=No+Image&font=roboto'">
                             <span class="absolute top-2 right-2 z-20 text-[10px] bg-black/50 text-white px-2 py-0.5 rounded-full backdrop-blur-sm shadow-sm">${p.stock || 0} stok</span>
                         </div>`;
                     } else {
@@ -314,7 +324,12 @@
                     `;
                     grid.appendChild(card);
                 } catch (e) {
-                    console.error("Skipping malformed product:", p, e);
+                    // IF ERROR: Show Red Card instead of nothing
+                    const errCard = document.createElement('div');
+                    errCard.className = "bg-red-50 p-2 text-[10px] text-red-600 border border-red-200 rounded";
+                    errCard.innerText = "Error Render: " + e.message;
+                    grid.appendChild(errCard);
+                    console.error("Render Error:", p, e);
                 }
             });
         }
@@ -498,8 +513,8 @@
                 action: 'addProduct',
                 name: form.name.value,
                 category: form.category.value,
-                price: parseInt(form.price.value),
-                stock: parseInt(form.stock.value),
+                price: Number(form.price.value) || 0,
+                stock: Number(form.stock.value) || 0,
                 image: tempImageBase64 || ''
             };
 

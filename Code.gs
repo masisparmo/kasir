@@ -32,6 +32,39 @@ function checkPermissions() {
   return "Izin LENGKAP berhasil diberikan! Sekarang deploy ulang web app Anda (Pilih 'New Version').";
 }
 
+/**
+ * FUNGSI PERBAIKAN: Jalankan ini jika gambar di aplikasi tidak muncul (broken).
+ * Ini akan memaksa semua file di folder "Data Kasir App" menjadi publik (View Only).
+ */
+function fixImagePermissions() {
+  const folderName = "Data Kasir App";
+  const folders = DriveApp.getFoldersByName(folderName);
+
+  if (folders.hasNext()) {
+    const folder = folders.next();
+    // Pastikan folder itu sendiri publik
+    folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    const files = folder.getFiles();
+    let count = 0;
+    console.log("Mulai memperbaiki izin file...");
+
+    while (files.hasNext()) {
+      const file = files.next();
+      try {
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        count++;
+      } catch (e) {
+        console.log("Gagal set izin file: " + file.getName());
+      }
+    }
+    console.log("Selesai. " + count + " file diperbaiki.");
+    return "Berhasil memperbaiki izin untuk " + count + " file gambar.";
+  } else {
+    return "Folder '" + folderName + "' tidak ditemukan.";
+  }
+}
+
 function doGet(e) {
   return handleRequest(e);
 }
@@ -141,6 +174,10 @@ function addProduct(ss, data) {
   const sheet = ss.getSheetByName('Produk');
   const id = 'P-' + Math.floor(Math.random() * 100000);
 
+  // Validasi Input Angka (mencegah NaN)
+  const price = Number(data.price) || 0;
+  const stock = Number(data.stock) || 0;
+
   // Logic Upload Gambar
   let imageUrl = '';
   // Cek apakah data gambar berupa Base64 (hasil upload file)
@@ -161,7 +198,7 @@ function addProduct(ss, data) {
   }
 
   // Simpan ke Sheet: ID, Nama, Harga, Stok, Kategori, URL Gambar
-  sheet.appendRow([id, data.name, data.price, data.stock, data.category, imageUrl]);
+  sheet.appendRow([id, data.name, price, stock, data.category, imageUrl]);
   return { status: 'success', message: 'Produk berhasil ditambahkan' };
 }
 
