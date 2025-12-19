@@ -93,7 +93,7 @@
                 </div>
 
                 <!-- Grid -->
-                <div id="productGrid" class="flex-1 overflow-y-auto p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 pb-24 md:pb-4">
+                <div id="productGrid" class="flex-1 overflow-y-auto px-4 pt-2 pb-24 md:pb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                     <div class="flex items-center justify-center col-span-full h-64 text-slate-400 flex-col">
                         <div class="loader mb-4 border-slate-300 border-t-blue-500"></div>
                         <p>Memuat produk...</p>
@@ -340,14 +340,6 @@
                 if (safeFilter === '') return true; // Show all by default
                 return String(p.name || '').toLowerCase().includes(safeFilter);
             });
-
-            // DEBUG INFO (Visible to User for troubleshooting)
-            if (products.length > 0) {
-                 const debugInfo = document.createElement('div');
-                 debugInfo.className = "col-span-full text-[10px] text-slate-400 mb-2 text-right font-mono";
-                 debugInfo.innerText = `Debug: Total=${products.length}, Filtered=${filtered.length}, Query="${safeFilter}"`;
-                 grid.appendChild(debugInfo);
-            }
 
             if (filtered.length === 0) {
                 if (products.length > 0) {
