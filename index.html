@@ -93,7 +93,7 @@
                 </div>
 
                 <!-- Grid -->
-                <div id="productGrid" class="flex-1 overflow-y-auto p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 pb-24 md:pb-4">
+                <div id="productGrid" class="flex-1 overflow-y-auto px-4 pt-2 pb-24 md:pb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                     <div class="flex items-center justify-center col-span-full h-64 text-slate-400 flex-col">
                         <div class="loader mb-4 border-slate-300 border-t-blue-500"></div>
                         <p>Memuat produk...</p>
@@ -219,11 +219,55 @@
 
     <script>
         // STATE MANAGEMENT
-        let API_URL = localStorage.getItem('umkm_pos_api') || '';
+        let API_URL = '';
         let isDemo = false;
         let products = [];
         let cart = [];
         let tempImageBase64 = null; // Menyimpan data gambar sementara
+
+        // INDEXED DB UTILS
+        const DB_NAME = 'UMKM_POS_DB';
+        const STORE_NAME = 'config';
+
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, 1);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        db.createObjectStore(STORE_NAME);
+                    }
+                };
+                request.onsuccess = (e) => resolve(e.target.result);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        async function saveConfigToDB(key, value) {
+            try {
+                const db = await initDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(STORE_NAME, 'readwrite');
+                    const store = tx.objectStore(STORE_NAME);
+                    store.put(value, key);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
+            } catch (e) { console.error("DB Error", e); }
+        }
+
+        async function getConfigFromDB(key) {
+            try {
+                const db = await initDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(STORE_NAME, 'readonly');
+                    const store = tx.objectStore(STORE_NAME);
+                    const request = store.get(key);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+            } catch (e) { console.error("DB Error", e); return null; }
+        }
         
         // MOCK DATA
         const mockProducts = [
@@ -233,11 +277,22 @@
             { id: 'P04', name: 'Es Teh Manis', price: 5000, stock: 100, category: 'Minuman', image: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&q=80&w=300&h=300' },
         ];
 
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             initTheme();
-            if (!API_URL) {
-                document.getElementById('configModal').classList.remove('hidden');
+            const storedUrl = await getConfigFromDB('apiUrl');
+
+            if (!storedUrl) {
+                // Fallback to localStorage for migration
+                const lsUrl = localStorage.getItem('umkm_pos_api');
+                if (lsUrl) {
+                    API_URL = lsUrl;
+                    await saveConfigToDB('apiUrl', lsUrl);
+                    fetchProducts();
+                } else {
+                    document.getElementById('configModal').classList.remove('hidden');
+                }
             } else {
+                API_URL = storedUrl;
                 fetchProducts();
             }
         });
@@ -252,18 +307,23 @@
                 const result = await response.json();
                 
                 if (result.status === 'success') {
-                    products = result.data;
+                    products = Array.isArray(result.data) ? result.data : [];
                     renderProducts();
                     renderStock();
                 } else {
                     console.error(result);
                     showToast('Gagal memuat data', true);
+                    showErrorState('Gagal memuat data dari server.');
                 }
             } catch (error) {
                 console.error(error);
                 showToast('Gagal koneksi server', true);
+                showErrorState('Gagal terhubung ke server. Periksa koneksi internet atau URL API.');
             } finally {
-                showLoader(false);
+                // showLoader(false) will be handled by renderProducts or showErrorState
+                // We only call it if we haven't rendered anything yet to clear the loader
+                // But simplified: showLoader(false) just clears grid, so we should NOT call it if we want to keep the Error State
+                // Let's modify showLoader to be smarter OR just don't call it here if we rendered error.
             }
         }
 
@@ -271,45 +331,92 @@
             const grid = document.getElementById('productGrid');
             grid.innerHTML = '';
             
-            const filtered = products.filter(p => p.name.toLowerCase().includes(filter.toLowerCase()));
+            // SECURITY & SAFETY: Force filter to string
+            const safeFilter = String(filter || '').trim().toLowerCase();
+
+            // LOGIC FIX: If filter is empty, return ALL products. Otherwise check name.
+            const filtered = products.filter(p => {
+                if (!p) return false; // Skip nulls
+                if (safeFilter === '') return true; // Show all by default
+                return String(p.name || '').toLowerCase().includes(safeFilter);
+            });
 
             if (filtered.length === 0) {
-                grid.innerHTML = `<div class="col-span-full text-center text-slate-400 mt-10">Produk tidak ditemukan</div>`;
+                if (products.length > 0) {
+                    // Safe DOM creation to prevent XSS
+                    const container = document.createElement('div');
+                    container.className = "col-span-full text-center text-slate-400 mt-10 flex flex-col items-center";
+
+                    const icon = document.createElement('i');
+                    icon.className = "fa-solid fa-filter-circle-xmark text-4xl mb-2";
+
+                    const msg = document.createElement('p');
+                    msg.textContent = `Tidak ada produk yang cocok dengan "${safeFilter}"`;
+
+                    const subMsg = document.createElement('p');
+                    subMsg.className = "text-xs mt-1";
+                    subMsg.textContent = `Total Data: ${products.length}`;
+
+                    const btn = document.createElement('button');
+                    btn.className = "mt-4 text-blue-500 text-sm hover:underline";
+                    btn.textContent = "Reset Filter";
+                    btn.onclick = () => { document.getElementById('searchProduct').value=''; renderProducts(); };
+
+                    container.append(icon, msg, subMsg, btn);
+                    grid.appendChild(container);
+                } else {
+                     grid.innerHTML = `<div class="col-span-full text-center text-slate-400 mt-10">Belum ada data produk. Silakan tambah di menu Stok.</div>`;
+                }
                 return;
             }
 
             filtered.forEach(p => {
-                const card = document.createElement('div');
-                card.className = 'bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm hover:shadow-md border border-slate-100 dark:border-slate-700 cursor-pointer transition active:scale-95 flex flex-col justify-between h-full group overflow-hidden';
-                card.onclick = () => addToCart(p.id);
-                
-                const iconColor = p.category.includes('Minum') ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'text-orange-500 bg-orange-50 dark:bg-orange-900/30';
-                
-                let imageHtml = '';
-                if (p.image && p.image.startsWith('http')) {
-                    imageHtml = `<div class="w-full h-32 mb-3 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
-                        <img src="${p.image}" alt="${p.name}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" onerror="this.onerror=null;this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center ${iconColor}\\'><i class=\\'fa-solid fa-image text-3xl\\'></i></div>'">
-                        <span class="absolute top-2 right-2 text-[10px] bg-black/50 text-white px-2 py-0.5 rounded-full backdrop-blur-sm">${p.stock} stok</span>
-                    </div>`;
-                } else {
-                    imageHtml = `
-                    <div class="flex justify-between items-start mb-3">
-                        <div class="w-12 h-12 rounded-lg ${iconColor} flex items-center justify-center">
-                            <i class="fa-solid fa-cube text-xl"></i>
-                        </div>
-                        <span class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-2 py-1 rounded-full border border-transparent dark:border-slate-600">${p.stock} stok</span>
-                    </div>`;
-                }
+                try {
+                    const card = document.createElement('div');
+                    // Removed 'justify-between' to compact text, reduced vertical padding/gaps
+                    card.className = 'bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm hover:shadow-md border border-slate-100 dark:border-slate-700 cursor-pointer transition active:scale-95 flex flex-col h-full group overflow-hidden';
+                    card.onclick = () => addToCart(p.id);
 
-                card.innerHTML = `
-                    ${imageHtml}
-                    <div>
-                        <h3 class="font-bold text-slate-800 dark:text-white leading-tight mb-1 text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">${p.name}</h3>
-                        <p class="text-[10px] text-slate-500 dark:text-slate-400 mb-2">${p.category}</p>
-                    </div>
-                    <div class="font-bold text-blue-600 dark:text-blue-400 text-sm">Rp ${formatNumber(p.price)}</div>
-                `;
-                grid.appendChild(card);
+                    const safeCategory = String(p.category || '');
+                    const iconColor = safeCategory.includes('Minum') ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'text-orange-500 bg-orange-50 dark:bg-orange-900/30';
+
+                    let imageHtml = '';
+                    const imgUrl = String(p.image || '');
+
+                    // Fixed Image Aspect Ratio (aspect-square) and reduced margin (mb-2)
+                    if (imgUrl && imgUrl.startsWith('http')) {
+                        imageHtml = `<div class="w-full aspect-square mb-2 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
+                            <img src="${imgUrl}" alt="${p.name}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/400?text=No+Image&font=roboto'">
+                            <span class="absolute top-2 right-2 z-20 text-[10px] bg-black/50 text-white px-2 py-0.5 rounded-full backdrop-blur-sm shadow-sm">${p.stock || 0} stok</span>
+                        </div>`;
+                    } else {
+                        imageHtml = `
+                        <div class="flex justify-between items-start mb-2 aspect-square bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
+                            <div class="w-full h-full rounded-lg ${iconColor} flex items-center justify-center">
+                                <i class="fa-solid fa-cube text-4xl opacity-50"></i>
+                            </div>
+                            <span class="absolute top-2 right-2 text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-2 py-1 rounded-full border border-transparent dark:border-slate-600">${p.stock || 0} stok</span>
+                        </div>`;
+                    }
+
+                    // Tighter text spacing
+                    card.innerHTML = `
+                        ${imageHtml}
+                        <div class="flex-1 flex flex-col">
+                            <h3 class="font-bold text-slate-800 dark:text-white leading-tight mb-0.5 text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">${p.name}</h3>
+                            <p class="text-[10px] text-slate-500 dark:text-slate-400 mb-2">${p.category}</p>
+                            <div class="font-bold text-blue-600 dark:text-blue-400 text-sm">Rp ${formatNumber(p.price)}</div>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                } catch (e) {
+                    // IF ERROR: Show Red Card instead of nothing
+                    const errCard = document.createElement('div');
+                    errCard.className = "bg-red-50 p-2 text-[10px] text-red-600 border border-red-200 rounded";
+                    errCard.innerText = "Error Render: " + e.message;
+                    grid.appendChild(errCard);
+                    console.error("Render Error:", p, e);
+                }
             });
         }
 
@@ -320,7 +427,7 @@
             products.forEach(p => {
                 let imgCell = `<div class="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-xs text-slate-400"><i class="fa-solid fa-cube"></i></div>`;
                 if(p.image && p.image.startsWith('http')) {
-                    imgCell = `<img src="${p.image}" class="w-8 h-8 rounded object-cover bg-slate-100" onerror="this.src=''">`;
+                    imgCell = `<img src="${p.image}" class="w-8 h-8 rounded object-cover bg-slate-100" onerror="this.onerror=null;this.src='https://placehold.co/100?text=No+Img&font=roboto'">`;
                 }
 
                 const tr = document.createElement('tr');
@@ -421,12 +528,16 @@
                     await new Promise(r => setTimeout(r, 1000));
                     cart.forEach(c => { const p = products.find(prod => prod.id === c.id); if(p) p.stock -= c.qty; });
                 } else {
-                    await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                    const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                    const result = await res.json();
+                    if (result.status !== 'success') {
+                        throw new Error(result.message || 'Gagal memproses transaksi');
+                    }
                     await fetchProducts();
                 }
                 showToast('Transaksi Berhasil!'); cart = []; updateCartUI();
                 if(isDemo) { renderProducts(); renderStock(); }
-            } catch (err) { console.error(err); showToast('Transaksi Gagal', true); }
+            } catch (err) { console.error(err); showToast('Transaksi Gagal: ' + (err.message || ''), true); }
             finally { btn.innerHTML = originalText; btn.disabled = false; }
         }
 
@@ -488,8 +599,8 @@
                 action: 'addProduct',
                 name: form.name.value,
                 category: form.category.value,
-                price: parseInt(form.price.value),
-                stock: parseInt(form.stock.value),
+                price: Number(form.price.value) || 0,
+                stock: Number(form.stock.value) || 0,
                 image: tempImageBase64 || ''
             };
 
@@ -501,7 +612,11 @@
                     products.push({ id: 'P'+Math.floor(Math.random()*1000), ...payload });
                     renderProducts(); renderStock();
                 } else {
-                    await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                    const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                    const result = await res.json();
+                    if (result.status !== 'success') {
+                        throw new Error(result.message || 'Gagal menyimpan data ke server');
+                    }
                     await fetchProducts();
                 }
                 showToast('Produk ditambahkan');
@@ -530,10 +645,24 @@
         function updateThemeIcon(isDark) {
             document.getElementById('themeToggleBtn').innerHTML = isDark ? '<i class="fa-solid fa-sun text-yellow-400"></i>' : '<i class="fa-solid fa-moon"></i>';
         }
-        function openConfig() { document.getElementById('configModal').classList.remove('hidden'); document.getElementById('apiUrlInput').value = API_URL; }
-        function saveConfig() {
+        async function openConfig() {
+            document.getElementById('configModal').classList.remove('hidden');
+            // Load real URL from DB, even if currently in Demo Mode
+            const savedUrl = await getConfigFromDB('apiUrl');
+            document.getElementById('apiUrlInput').value = savedUrl || (isDemo ? '' : API_URL);
+        }
+        async function saveConfig() {
             const url = document.getElementById('apiUrlInput').value.trim();
-            if (url) { API_URL = url; localStorage.setItem('umkm_pos_api', url); isDemo = false; document.getElementById('configModal').classList.add('hidden'); showToast('Terhubung'); fetchProducts(); }
+            if (url) {
+                API_URL = url;
+                await saveConfigToDB('apiUrl', url);
+                // Also update localStorage for backup
+                localStorage.setItem('umkm_pos_api', url);
+                isDemo = false;
+                document.getElementById('configModal').classList.add('hidden');
+                showToast('Terhubung');
+                fetchProducts();
+            }
         }
         function useDemoMode() { isDemo = true; API_URL = 'demo'; document.getElementById('configModal').classList.add('hidden'); products = [...mockProducts]; renderProducts(); renderStock(); showToast('Mode Demo'); }
         async function fetchTransactions() {
@@ -569,7 +698,29 @@
             t.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-xl transform transition-transform duration-300 z-50 flex items-center gap-3 border dark:border-slate-600 ${err?'bg-red-600':'bg-slate-800 dark:bg-slate-700'} text-white translate-x-0`;
             setTimeout(() => { t.classList.add('translate-x-full'); t.classList.remove('translate-x-0'); }, 3000);
         }
-        function showLoader(show) { document.getElementById('productGrid').innerHTML = show ? `<div class="flex items-center justify-center col-span-full h-64 flex-col"><div class="loader mb-4 border-slate-300 border-t-blue-500"></div><p class="text-slate-400">Sinkronisasi...</p></div>` : ''; }
+        function showLoader(show) {
+            const grid = document.getElementById('productGrid');
+            if (show) {
+                grid.innerHTML = `<div class="flex items-center justify-center col-span-full h-64 flex-col"><div class="loader mb-4 border-slate-300 border-t-blue-500"></div><p class="text-slate-400">Sinkronisasi...</p></div>`;
+            } else {
+                // Do not clear immediately, let the render function handle it.
+                // Or if we really want to clear:
+                // grid.innerHTML = '';
+            }
+        }
+
+        function showErrorState(msg) {
+            const grid = document.getElementById('productGrid');
+            grid.innerHTML = `
+                <div class="col-span-full flex flex-col items-center justify-center h-64 text-red-500 text-center p-6">
+                    <i class="fa-solid fa-triangle-exclamation text-4xl mb-4"></i>
+                    <p class="font-bold mb-2">Terjadi Kesalahan</p>
+                    <p class="text-sm text-slate-500 mb-4">${msg}</p>
+                    <button onclick="fetchProducts()" class="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm hover:bg-slate-900 transition"><i class="fa-solid fa-rotate-right mr-2"></i>Coba Lagi</button>
+                    <button onclick="useDemoMode()" class="mt-2 text-blue-500 text-xs hover:underline">Gunakan Mode Demo</button>
+                </div>
+            `;
+        }
     </script>
 </body>
 </html>
